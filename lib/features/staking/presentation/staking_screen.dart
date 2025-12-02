@@ -3,7 +3,9 @@ import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/design_system/transaction_input_screen.dart';
-import '../../../shared/widgets/design_system/transaction_input_skeleton.dart';
+import '../../../shared/widgets/staking_skeleton.dart';
+import '../../../shared/widgets/design_system/transaction_header.dart';
+import '../../../shared/widgets/common/info_dialog.dart';
 
 class StakingScreen extends StatefulWidget {
   const StakingScreen({super.key});
@@ -16,6 +18,8 @@ class _StakingScreenState extends State<StakingScreen> {
   List<dynamic> _stakes = [];
   Map<String, dynamic>? _balance;
   bool _isLoading = true;
+  double _defaultDailyRate = 0.5; // Tasa diaria por defecto en porcentaje (0.5%)
+  String _filterType = 'active'; // 'active' o 'closed'
 
   @override
   void initState() {
@@ -32,8 +36,21 @@ class _StakingScreenState extends State<StakingScreen> {
       ]);
       if (mounted) {
         setState(() {
-          _stakes = List.from(results[0].data ?? []);
+          final stakesData = results[0].data ?? [];
+          _stakes = List.from(stakesData);
           _balance = results[1].data;
+          
+          // Obtener la tasa diaria del primer stake activo si existe
+          if (_stakes.isNotEmpty) {
+            final firstActiveStake = _stakes.firstWhere(
+              (s) => _isStakeActive(s),
+              orElse: () => _stakes.first,
+            );
+            final rate = firstActiveStake['dailyRateBp'] ?? 
+                        firstActiveStake['daily_rate_bp'] ?? 50;
+            _defaultDailyRate = (rate is num) ? rate.toDouble() / 100 : 0.5;
+          }
+          
           _isLoading = false;
         });
       }
@@ -50,6 +67,20 @@ class _StakingScreenState extends State<StakingScreen> {
     }
   }
 
+  bool _isStakeActive(dynamic stake) {
+    // Verificar si el stake está activo
+    final status = stake['status'] ?? stake['Status'];
+    final closedAt = stake['closedAt'] ?? stake['closed_at'];
+    
+    if (status != null) {
+      return status.toString().toLowerCase() == 'active' || 
+             status.toString().toLowerCase() == 'activo';
+    }
+    
+    // Si no hay status, considerar activo si no tiene closedAt
+    return closedAt == null;
+  }
+
   String _formatBalance(num? balance) {
     if (balance == null) return '0.00';
     return balance.toStringAsFixed(2);
@@ -58,10 +89,54 @@ class _StakingScreenState extends State<StakingScreen> {
   double _getTotalStaked() {
     double total = 0.0;
     for (var stake in _stakes) {
-      final amount = stake['amountUsdt'] ?? stake['amount_usdt'] ?? 0.0;
-      total += (amount is num) ? amount.toDouble() : 0.0;
+      if (_isStakeActive(stake)) {
+        final amount = stake['amountUsdt'] ?? stake['amount_usdt'] ?? 0.0;
+        total += (amount is num) ? amount.toDouble() : 0.0;
+      }
     }
     return total;
+  }
+
+  List<dynamic> _getActiveStakes() {
+    return _stakes.where((s) => _isStakeActive(s)).toList();
+  }
+
+  List<dynamic> _getClosedStakes() {
+    return _stakes.where((s) => !_isStakeActive(s)).toList();
+  }
+
+  double _calculateAccumulatedInterest(dynamic stake) {
+    try {
+      final amount = stake['amountUsdt'] ?? stake['amount_usdt'] ?? 0.0;
+      final amountNum = (amount is num) ? amount.toDouble() : 0.0;
+      
+      final dailyRate = stake['dailyRateBp'] ?? stake['daily_rate_bp'] ?? 50;
+      final dailyRateNum = (dailyRate is num) ? dailyRate.toDouble() : 50.0;
+      final dailyRatePercent = dailyRateNum / 100; // Convertir basis points a porcentaje
+      
+      // Obtener fecha de creación
+      DateTime? createdAt;
+      final createdAtField = stake['createdAt'] ?? stake['created_at'];
+      if (createdAtField is String) {
+        createdAt = DateTime.parse(createdAtField);
+      } else if (createdAtField is int) {
+        createdAt = DateTime.fromMillisecondsSinceEpoch(createdAtField);
+      }
+      
+      if (createdAt == null) return 0.0;
+      
+      // Calcular días transcurridos
+      final now = DateTime.now();
+      final daysElapsed = now.difference(createdAt).inDays;
+      
+      // Calcular interés acumulado (interés simple diario)
+      final dailyInterest = amountNum * (dailyRatePercent / 100);
+      final accumulatedInterest = dailyInterest * daysElapsed;
+      
+      return accumulatedInterest;
+    } catch (e) {
+      return 0.0;
+    }
   }
 
   Future<void> _createStake(String amount) async {
@@ -79,7 +154,7 @@ class _StakingScreenState extends State<StakingScreen> {
     try {
       await ApiService().createStake(amountNum);
       if (mounted) {
-        Navigator.pop(context); // Cerrar el diálogo
+        Navigator.pop(context);
         await _loadData();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -101,7 +176,6 @@ class _StakingScreenState extends State<StakingScreen> {
   }
 
   Future<void> _closeStake(String stakeId) async {
-    // Confirmar antes de cerrar
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -113,14 +187,14 @@ class _StakingScreenState extends State<StakingScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
+              ),
+              ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.textPrimary,
-            ),
-            child: const Text('Cerrar'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: AppColors.textPrimary,
+                ),
+                child: const Text('Cerrar'),
           ),
         ],
       ),
@@ -158,6 +232,7 @@ class _StakingScreenState extends State<StakingScreen> {
       MaterialPageRoute(
         builder: (_) => _CreateStakeScreen(
           maxAmount: available.toDouble(),
+          dailyRate: _defaultDailyRate,
           onCreateStake: _createStake,
         ),
       ),
@@ -169,6 +244,8 @@ class _StakingScreenState extends State<StakingScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final available = _balance?['available'] as num? ?? 0.0;
     final totalStaked = _getTotalStaked();
+    final activeStakes = _getActiveStakes();
+    final closedStakes = _getClosedStakes();
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -185,7 +262,7 @@ class _StakingScreenState extends State<StakingScreen> {
         foregroundColor: isDark ? AppColors.textPrimary : AppColors.textDark,
       ),
       body: _isLoading
-          ? const TransactionInputSkeleton()
+          ? const StakingSkeleton()
           : RefreshIndicator(
               onRefresh: _loadData,
               color: AppColors.primary,
@@ -240,15 +317,31 @@ class _StakingScreenState extends State<StakingScreen> {
                             ),
                           ),
                           const SizedBox(height: AppSpacing.xl),
-                          // Título de stakes
-                          Text(
-                            'Mis Stakes',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? AppColors.textPrimary : AppColors.textDark,
+                          // Filtros
+                          if (_stakes.isNotEmpty)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _FilterChip(
+                                    label: 'Stakes Activos',
+                                    isSelected: _filterType == 'active',
+                                    count: activeStakes.length,
+                                    onTap: () => setState(() => _filterType = 'active'),
+                                    isDark: isDark,
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: _FilterChip(
+                                    label: 'Stakes Cerrados',
+                                    isSelected: _filterType == 'closed',
+                                    count: closedStakes.length,
+                                    onTap: () => setState(() => _filterType = 'closed'),
+                                    isDark: isDark,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
                         ],
                       ),
                     ),
@@ -257,7 +350,10 @@ class _StakingScreenState extends State<StakingScreen> {
                   if (_stakes.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: _StakingInfoWidget(isDark: isDark),
+                      child: _StakingInfoWidget(
+                        isDark: isDark,
+                        dailyRate: _defaultDailyRate,
+                      ),
                     )
                   else
                     SliverPadding(
@@ -265,23 +361,132 @@ class _StakingScreenState extends State<StakingScreen> {
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
-                            final stake = _stakes[index];
+                            final filteredStakes = _filterType == 'active' ? activeStakes : closedStakes;
+                            
+                            if (filteredStakes.isEmpty) {
+                              return Padding(
+                                padding: EdgeInsets.only(top: AppSpacing.xl),
+                                child: Center(
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.inbox_rounded,
+                                        size: 64,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      const SizedBox(height: AppSpacing.md),
+                                      Text(
+                                        'No hay ${_filterType == 'active' ? 'stakes activos' : 'stakes cerrados'}',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                            
+                            final stake = filteredStakes[index];
+                            final isActive = _filterType == 'active';
+                            
                             return Padding(
                               padding: EdgeInsets.only(bottom: AppSpacing.md),
                               child: _StakeCard(
                                 stake: stake,
                                 isDark: isDark,
-                                onClose: () => _closeStake(stake['id'] ?? stake['_id']),
+                                isActive: isActive,
+                                accumulatedInterest: _calculateAccumulatedInterest(stake),
+                                onClose: isActive
+                                    ? () => _closeStake(stake['id'] ?? stake['_id'])
+                                    : null,
                               ),
                             );
                           },
-                          childCount: _stakes.length,
+                          childCount: _filterType == 'active' ? activeStakes.length : closedStakes.length,
                         ),
                       ),
                     ),
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final int count;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.count,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary
+              : (isDark ? const Color(0xFF252940) : AppColors.surface),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary
+                : (isDark ? AppColors.textSecondary.withValues(alpha: 0.3) : AppColors.textSecondary.withValues(alpha: 0.2)),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isSelected
+                    ? AppColors.textPrimary
+                    : (isDark ? AppColors.textPrimary : AppColors.textDark),
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.textPrimary.withValues(alpha: 0.2)
+                      : AppColors.primary.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected
+                        ? AppColors.textPrimary
+                        : AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -349,12 +554,16 @@ class _BalanceCard extends StatelessWidget {
 class _StakeCard extends StatelessWidget {
   final dynamic stake;
   final bool isDark;
-  final VoidCallback onClose;
+  final bool isActive;
+  final double accumulatedInterest;
+  final VoidCallback? onClose;
 
   const _StakeCard({
     required this.stake,
     required this.isDark,
-    required this.onClose,
+    required this.isActive,
+    required this.accumulatedInterest,
+    this.onClose,
   });
 
   String _formatDate(dynamic date) {
@@ -380,8 +589,7 @@ class _StakeCard extends StatelessWidget {
     final dailyRateNum = (dailyRate is num) ? dailyRate.toDouble() : 0.0;
     final dailyRatePercent = dailyRateNum / 100; // Convertir basis points a porcentaje
     final createdAt = stake['createdAt'] ?? stake['created_at'];
-    final estimatedRewards = stake['estimatedRewards'] ?? stake['estimated_rewards'] ?? 0.0;
-    final estimatedRewardsNum = (estimatedRewards is num) ? estimatedRewards.toDouble() : 0.0;
+    final closedAt = stake['closedAt'] ?? stake['closed_at'];
 
     return Container(
       padding: EdgeInsets.all(AppSpacing.md),
@@ -389,7 +597,9 @@ class _StakeCard extends StatelessWidget {
         color: isDark ? const Color(0xFF252940) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.secondary.withValues(alpha: 0.3),
+          color: isActive
+              ? AppColors.secondary.withValues(alpha: 0.3)
+              : AppColors.textSecondary.withValues(alpha: 0.3),
           width: 1.5,
         ),
         boxShadow: [
@@ -410,13 +620,35 @@ class _StakeCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${amountNum.toStringAsFixed(2)} USDT',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? AppColors.textPrimary : AppColors.textDark,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          '${amountNum.toStringAsFixed(2)} USDT',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? AppColors.textPrimary : AppColors.textDark,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? AppColors.secondary.withValues(alpha: 0.2)
+                                : AppColors.textSecondary.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            isActive ? 'Activo' : 'Finalizado',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isActive ? AppColors.secondary : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -429,20 +661,66 @@ class _StakeCard extends StatelessWidget {
                   ],
                 ),
               ),
-              ElevatedButton(
-                onPressed: onClose,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                  foregroundColor: AppColors.textPrimary,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              if (isActive && onClose != null)
+                ElevatedButton(
+                  onPressed: onClose,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: AppColors.textPrimary,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: const Text('Cerrar'),
                 ),
-                child: const Text('Cerrar'),
-              ),
             ],
+          ),
+          const SizedBox(height: 12),
+          // Interés acumulado
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.secondary.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.trending_up_rounded,
+                  size: 20,
+                  color: AppColors.secondary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Interés acumulado',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        '${accumulatedInterest.toStringAsFixed(2)} USDT',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? AppColors.textPrimary : AppColors.textDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           if (createdAt != null) ...[
             const SizedBox(height: 12),
@@ -464,38 +742,24 @@ class _StakeCard extends StatelessWidget {
               ],
             ),
           ],
-          if (estimatedRewardsNum > 0) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.secondary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.secondary.withValues(alpha: 0.3),
-                  width: 1,
+          if (closedAt != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.trending_up_rounded,
-                    size: 20,
-                    color: AppColors.secondary,
+                const SizedBox(width: 6),
+                Text(
+                  'Cerrado: ${_formatDate(closedAt)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Recompensas estimadas: ${estimatedRewardsNum.toStringAsFixed(2)} USDT',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.textPrimary : AppColors.textDark,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         ],
@@ -506,8 +770,12 @@ class _StakeCard extends StatelessWidget {
 
 class _StakingInfoWidget extends StatelessWidget {
   final bool isDark;
+  final double dailyRate;
 
-  const _StakingInfoWidget({required this.isDark});
+  const _StakingInfoWidget({
+    required this.isDark,
+    required this.dailyRate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -537,6 +805,53 @@ class _StakingInfoWidget extends StatelessWidget {
               color: isDark ? AppColors.textPrimary : AppColors.textDark,
             ),
             textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          // Información sobre interés diario
+          Container(
+            padding: EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.secondary,
+                  AppColors.secondary.withValues(alpha: 0.8),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.percent_rounded,
+                  color: AppColors.textPrimary,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Interés Diario',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textPrimary.withValues(alpha: 0.9),
+                      ),
+                    ),
+                    Text(
+                      '${dailyRate.toStringAsFixed(2)}%',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: AppSpacing.lg),
           _InfoItem(
@@ -643,36 +958,219 @@ class _InfoItem extends StatelessWidget {
   }
 }
 
-class _CreateStakeScreen extends StatelessWidget {
+class _CreateStakeScreen extends StatefulWidget {
   final double maxAmount;
+  final double dailyRate;
   final Function(String) onCreateStake;
 
   const _CreateStakeScreen({
     required this.maxAmount,
+    required this.dailyRate,
     required this.onCreateStake,
   });
 
   @override
+  State<_CreateStakeScreen> createState() => _CreateStakeScreenState();
+}
+
+class _CreateStakeScreenState extends State<_CreateStakeScreen> {
+  String _amount = '';
+  double _estimatedEarnings = 0.0;
+  double _dailyEarning = 0.0;
+
+  void _calculateEarnings(String amount) {
+    final amountNum = double.tryParse(amount) ?? 0.0;
+    if (amountNum > 0) {
+      // Calcular ganancias estimadas para diferentes períodos
+      // Interés diario simple
+      final dailyEarning = amountNum * (widget.dailyRate / 100);
+      // Mostrar estimado para 30 días
+      setState(() {
+        _dailyEarning = dailyEarning;
+        _estimatedEarnings = dailyEarning * 30;
+      });
+    } else {
+      setState(() {
+        _dailyEarning = 0.0;
+        _estimatedEarnings = 0.0;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasValidAmount = _amount.isNotEmpty && 
+                          double.tryParse(_amount) != null && 
+                          double.parse(_amount) > 0;
+    
     return Scaffold(
-      backgroundColor: Theme.of(context).brightness == Brightness.dark
-          ? AppColors.backgroundDark
-          : AppColors.backgroundLight,
-      appBar: AppBar(
-        title: const Text('Crear Stake'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: TransactionInputScreen(
-        title: 'Crear Stake',
-        currencyCode: 'USDT',
-        balance: '${maxAmount.toStringAsFixed(2)} USDT',
-        currencySymbol: '\$',
-        buttonText: 'Crear Stake',
-        showDecimal: true,
-        maxAmount: maxAmount,
-        compactBalance: true,
-        onContinue: onCreateStake,
+      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header personalizado con botón de información
+            TransactionHeader(
+              title: 'Crear Stake',
+              onMenu: () => InfoDialog.showStakingInfo(context),
+            ),
+            
+            // Balance y Estimador lado a lado
+            Padding(
+              padding: EdgeInsets.all(AppSpacing.screenHorizontal),
+              child: Row(
+                children: [
+                  // Balance disponible
+                  Expanded(
+                    child: Container(
+                      padding: EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            AppColors.primary,
+                            AppColors.primary.withValues(alpha: 0.8),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Disponible',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textPrimary.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${widget.maxAmount.toStringAsFixed(2)} USDT',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  // Estimador de ganancias
+                  Expanded(
+                    child: Container(
+                      padding: EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            AppColors.secondary,
+                            AppColors.secondary.withValues(alpha: 0.8),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.secondary.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calculate_rounded,
+                                color: AppColors.textPrimary,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Estimado',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textPrimary.withValues(alpha: 0.9),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          if (hasValidAmount)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${_dailyEarning.toStringAsFixed(2)} USDT/día',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  '${_estimatedEarnings.toStringAsFixed(2)} USDT/mes',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textPrimary.withValues(alpha: 0.8),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            Text(
+                              'Ingresa monto',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textPrimary.withValues(alpha: 0.7),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Pantalla de entrada de transacción
+            Expanded(
+              child: TransactionInputScreen(
+          title: 'Crear Stake',
+          currencyCode: 'USDT',
+                balance: '${widget.maxAmount.toStringAsFixed(2)} USDT',
+          currencySymbol: '\$',
+                buttonText: 'Crear Stake',
+          showDecimal: true,
+                maxAmount: widget.maxAmount,
+                hideBalance: true, // Ocultar balance aquí ya que está arriba
+                hideHeader: true, // Ocultar header aquí ya que está arriba
+                showAmountInput: false, // Ocultar input de monto
+                onAmountChanged: (amount) {
+                  setState(() {
+                    _amount = amount;
+                  });
+                  _calculateEarnings(amount);
+                },
+                onContinue: widget.onCreateStake,
+                onInfoTap: () => InfoDialog.showStakingInfo(context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

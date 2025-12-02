@@ -58,6 +58,27 @@ class InfoDialog extends StatelessWidget {
     );
   }
 
+  /// Muestra el diálogo de información para crear un stake
+  static void showStakingInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => InfoDialog(
+        title: 'Cómo crear un Stake',
+        description: 'Sigue estos pasos para crear un stake y generar ingresos pasivos:',
+        steps: [
+          'Ingresa la cantidad de USDT que deseas stakear',
+          'Revisa el estimado de ganancias diarias y mensuales',
+          'Verifica que tengas suficiente saldo disponible',
+          'Presiona "Crear Stake" para confirmar',
+          'Tu USDT quedará bloqueado y comenzará a generar intereses',
+          'Los intereses se acumulan diariamente según la tasa configurada',
+          'Puedes cerrar tu stake en cualquier momento',
+          'Al cerrar, recibirás el principal más todas las recompensas acumuladas',
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;

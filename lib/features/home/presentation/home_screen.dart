@@ -73,10 +73,10 @@ class _BottomNavigation extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _NavItem(
-                icon: Icons.dashboard_rounded,
-                label: 'Home',
-                route: '/home/dashboard',
-                isActive: currentLocation == '/home' || currentLocation == '/home/dashboard',
+                icon: Icons.person_rounded,
+                label: 'Perfil',
+                route: '/home/profile',
+                isActive: currentLocation == '/home/profile',
                 isDark: isDark,
               ),
               // Espacio para el botón central sobresalido

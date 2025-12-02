@@ -90,20 +90,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     pinned: true,
                     backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
                     elevation: 0,
-                    leading: IconButton(
-                      icon: const Icon(Icons.person_rounded),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                      ),
-                    ),
-                    title: Text(
-                      'CuñaPay',
-                      style: TextStyle(
-                        color: isDark ? AppColors.textPrimary : AppColors.textDark,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                     centerTitle: true,
                   ),
                   SliverToBoxAdapter(

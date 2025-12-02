@@ -31,6 +31,8 @@ class TransactionInputScreen extends StatefulWidget {
   final Function(String amount)? calculateAmountBs;
   final bool showAmountInput;
   final bool compactBalance;
+  final bool hideBalance;
+  final bool hideHeader;
   final VoidCallback? onInfoTap;
 
   const TransactionInputScreen({
@@ -52,6 +54,8 @@ class TransactionInputScreen extends StatefulWidget {
     this.calculateAmountBs,
     this.showAmountInput = false,
     this.compactBalance = false,
+    this.hideBalance = false,
+    this.hideHeader = false,
     this.onInfoTap,
   });
 
@@ -179,10 +183,11 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
         child: Column(
           children: [
             // Header
-            TransactionHeader(
-              title: widget.title,
-              onMenu: widget.onInfoTap,
-            ),
+            if (!widget.hideHeader)
+              TransactionHeader(
+                title: widget.title,
+                onMenu: widget.onInfoTap,
+              ),
             
             // Selector de moneda o Input de monto
             if (widget.showAmountInput)
@@ -193,22 +198,21 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                 ),
                 child: Row(
                   children: [
-                    // Logo de Tether (USDT)
+                    // Símbolo de moneda ($)
                     Container(
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF26A17B),
+                        color: AppColors.primary,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Center(
                         child: Text(
-                          '₮',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w400,
-                            color: Colors.white,
-                            fontFamily: 'Arial',
+                          widget.currencySymbol,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -263,7 +267,7 @@ class _TransactionInputScreenState extends State<TransactionInputScreen> {
                   ],
                 ),
               )
-            else
+            else if (!widget.hideBalance)
               CurrencySelector(
                 currencyCode: widget.currencyCode,
                 balance: widget.balance,
