@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Color verde del gradiente de login (darkGreen) -->
+    <color name="splash_background">#086046</color>
+</resources>
+
