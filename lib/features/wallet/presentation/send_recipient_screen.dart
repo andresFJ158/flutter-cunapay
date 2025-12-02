@@ -4,6 +4,7 @@ import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/qr_scanner_screen.dart';
+import 'transaction_receipt_screen.dart';
 
 class SendRecipientScreen extends StatefulWidget {
   final String amount;
@@ -324,13 +325,50 @@ class _SendRecipientScreenState extends State<SendRecipientScreen> {
 
     setState(() => _isSending = true);
     try {
-      await ApiService().sendUSDT(_toController.text.trim(), widget.amount);
+      final response = await ApiService().sendUSDT(_toController.text.trim(), widget.amount);
       if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('USDT enviado correctamente'),
-            backgroundColor: AppColors.success,
+        // Extraer datos de la respuesta
+        final responseData = response.data;
+        final transactionId = responseData?['id']?.toString() ?? 
+                             responseData?['transactionId']?.toString();
+        final transactionHash = responseData?['hash']?.toString() ?? 
+                               responseData?['transactionHash']?.toString();
+        DateTime? timestamp;
+        if (responseData?['timestamp'] != null) {
+          try {
+            timestamp = DateTime.fromMillisecondsSinceEpoch(responseData['timestamp'] as int);
+          } catch (e) {
+            // Intentar parsear como string
+            try {
+              timestamp = DateTime.parse(responseData['timestamp'].toString());
+            } catch (e2) {
+              timestamp = DateTime.now();
+            }
+          }
+        } else if (responseData?['createdAt'] != null || responseData?['created_at'] != null) {
+          try {
+            timestamp = DateTime.parse(
+              responseData['createdAt']?.toString() ?? 
+              responseData['created_at']?.toString() ?? 
+              DateTime.now().toIso8601String()
+            );
+          } catch (e) {
+            timestamp = DateTime.now();
+          }
+        } else {
+          timestamp = DateTime.now();
+        }
+
+        // Navegar a la pantalla de comprobante
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => TransactionReceiptScreen(
+              amount: widget.amount,
+              toAddress: _toController.text.trim(),
+              transactionId: transactionId,
+              transactionHash: transactionHash,
+              timestamp: timestamp,
+            ),
           ),
         );
       }

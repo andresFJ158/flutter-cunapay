@@ -1,5 +1,5 @@
 name: cunapay_flutter
-description: CunaPay - Crypto Wallet App con Flutter
+description: CuñaPay - Crypto Wallet Boliviana
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -45,10 +45,13 @@ dependencies:
   flutter_dotenv: ^5.1.0
   qr_flutter: ^4.1.0
   share_plus: ^7.2.1
+  path_provider: ^2.1.1
+  widgets_to_image: ^1.0.0
   
   # Icons
   cupertino_icons: ^1.0.6
   font_awesome_flutter: ^10.6.0
+  cross_file: ^0.3.5+1
 
 dev_dependencies:
   flutter_test:
