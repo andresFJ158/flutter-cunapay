@@ -13,6 +13,7 @@ class ApiConfig {
   
   // ==================== USUARIO ====================
   static const String apiMe = '/api/me';
+  static const String apiMeChangePassword = '/api/me/change-password';
   
   // ==================== WALLET Y BALANCE ====================
   static const String apiWallet = '/api/me/wallet';

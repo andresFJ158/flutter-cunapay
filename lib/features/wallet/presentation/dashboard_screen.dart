@@ -85,13 +85,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: AppColors.primary,
               child: CustomScrollView(
                 slivers: [
-                  SliverAppBar(
-                    floating: false,
-                    pinned: true,
-                    backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-                    elevation: 0,
-                    centerTitle: true,
-                  ),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.all(AppSpacing.screenHorizontal),

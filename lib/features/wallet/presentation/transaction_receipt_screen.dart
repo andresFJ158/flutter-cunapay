@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -102,25 +104,66 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
         return;
       }
 
-      final directory = await getApplicationDocumentsDirectory();
-      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      final file = File('${directory.path}/comprobante_$timestamp.png');
-      await file.writeAsBytes(imageBytes);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Comprobante guardado en: ${file.path}'),
-            backgroundColor: AppColors.success,
-            duration: const Duration(seconds: 3),
-          ),
+      if (kIsWeb) {
+        // En web, usar share directamente ya que no podemos guardar archivos
+        final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+        final xFile = XFile.fromData(
+          imageBytes,
+          mimeType: 'image/png',
+          name: 'comprobante_$timestamp.png',
         );
+        await Share.shareXFiles([xFile], text: 'Comprobante de transacción CuñaPay');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Comprobante listo para descargar'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } else {
+        // En móvil, guardar en el directorio de documentos
+        try {
+          final directory = await getApplicationDocumentsDirectory();
+          final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+          final file = File('${directory.path}/comprobante_$timestamp.png');
+          await file.writeAsBytes(imageBytes);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Comprobante guardado en: ${file.path}'),
+                backgroundColor: AppColors.success,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        } catch (e) {
+          // Si falla guardar, intentar compartir directamente
+          final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+          final xFile = XFile.fromData(
+            imageBytes,
+            mimeType: 'image/png',
+            name: 'comprobante_$timestamp.png',
+          );
+          await Share.shareXFiles([xFile], text: 'Comprobante de transacción CuñaPay');
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Comprobante compartido (no se pudo guardar localmente)'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al guardar: ${e.toString()}'),
+            content: Text('Error: ${e.toString()}'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -151,12 +194,33 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
         return;
       }
 
-      final directory = await getTemporaryDirectory();
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      final file = File('${directory.path}/comprobante_$timestamp.png');
-      await file.writeAsBytes(imageBytes);
+      XFile xFile;
 
-      final xFile = XFile(file.path);
+      if (kIsWeb) {
+        // En web, crear XFile directamente desde los bytes
+        xFile = XFile.fromData(
+          imageBytes,
+          mimeType: 'image/png',
+          name: 'comprobante_$timestamp.png',
+        );
+      } else {
+        // En móvil, intentar usar directorio temporal
+        try {
+          final directory = await getTemporaryDirectory();
+          final file = File('${directory.path}/comprobante_$timestamp.png');
+          await file.writeAsBytes(imageBytes);
+          xFile = XFile(file.path);
+        } catch (e) {
+          // Si falla getTemporaryDirectory, crear XFile directamente desde bytes
+          xFile = XFile.fromData(
+            imageBytes,
+            mimeType: 'image/png',
+            name: 'comprobante_$timestamp.png',
+          );
+        }
+      }
+
       await Share.shareXFiles(
         [xFile],
         text: 'Comprobante de transacción CuñaPay',
@@ -217,88 +281,89 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
                         child: WidgetsToImage(
                           controller: _widgetsToImageController,
                           child: Container(
-                          padding: EdgeInsets.all(AppSpacing.xl),
+                          padding: EdgeInsets.all(AppSpacing.lg),
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF252940) : AppColors.surface,
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: AppColors.primary.withValues(alpha: 0.2),
-                              width: 2,
+                              width: 1.5,
                             ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               // Logo
                               Image.asset(
                                 'lib/assets/logo.png',
-                                width: 80,
-                                height: 80,
+                                width: 60,
+                                height: 60,
                               ),
-                              const SizedBox(height: AppSpacing.lg),
+                              const SizedBox(height: AppSpacing.md),
                               // Título
                               Text(
                                 'Comprobante de Transacción',
                                 style: TextStyle(
-                                  fontSize: 24,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: isDark ? AppColors.textPrimary : AppColors.textDark,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: AppSpacing.sm),
+                              const SizedBox(height: 4),
                               Text(
                                 'Envío de USDT',
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 14,
                                   color: AppColors.textSecondary,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: AppSpacing.xl),
+                              const SizedBox(height: AppSpacing.md),
                               // Icono de éxito
                               Container(
-                                padding: const EdgeInsets.all(20),
+                                padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: AppColors.success.withValues(alpha: 0.15),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
                                   Icons.check_circle_rounded,
-                                  size: 48,
+                                  size: 36,
                                   color: AppColors.success,
                                 ),
                               ),
-                              const SizedBox(height: AppSpacing.xl),
+                              const SizedBox(height: AppSpacing.md),
                               // Monto
                               Text(
                                 '${widget.amount} USDT',
                                 style: TextStyle(
-                                  fontSize: 36,
+                                  fontSize: 28,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.primary,
                                 ),
                               ),
-                              const SizedBox(height: AppSpacing.xl),
+                              const SizedBox(height: AppSpacing.md),
                               // Divider
                               Container(
                                 height: 1,
                                 color: AppColors.textSecondary.withValues(alpha: 0.2),
                               ),
-                              const SizedBox(height: AppSpacing.lg),
+                              const SizedBox(height: AppSpacing.md),
                               // Detalles
                               _buildDetailRow(
                                 'Fecha',
                                 formattedDate,
                                 isDark,
                               ),
-                              const SizedBox(height: AppSpacing.md),
+                              const SizedBox(height: AppSpacing.sm),
                               _buildDetailRow(
                                 'Hora',
                                 formattedTime,
                                 isDark,
                               ),
-                              const SizedBox(height: AppSpacing.md),
+                              const SizedBox(height: AppSpacing.sm),
                               _buildDetailRow(
                                 'Desde',
                                 _fromAddress ?? 'N/A',
@@ -307,7 +372,7 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
                                     ? () => _copyToClipboard(_fromAddress!, 'Dirección')
                                     : null,
                               ),
-                              const SizedBox(height: AppSpacing.md),
+                              const SizedBox(height: AppSpacing.sm),
                               _buildDetailRow(
                                 'Hacia',
                                 widget.toAddress,
@@ -315,7 +380,7 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
                                 onTap: () => _copyToClipboard(widget.toAddress, 'Dirección'),
                               ),
                               if (widget.transactionId != null) ...[
-                                const SizedBox(height: AppSpacing.md),
+                                const SizedBox(height: AppSpacing.sm),
                                 _buildDetailRow(
                                   'ID de Transacción',
                                   widget.transactionId!,
@@ -324,7 +389,7 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
                                 ),
                               ],
                               if (widget.transactionHash != null) ...[
-                                const SizedBox(height: AppSpacing.md),
+                                const SizedBox(height: AppSpacing.sm),
                                 _buildDetailRow(
                                   'Hash de Transacción',
                                   widget.transactionHash!,
@@ -332,12 +397,12 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
                                   onTap: () => _copyToClipboard(widget.transactionHash!, 'Hash'),
                                 ),
                               ],
-                              const SizedBox(height: AppSpacing.lg),
+                              const SizedBox(height: AppSpacing.md),
                               // Footer
                               Text(
                                 'CuñaPay - Tu wallet crypto de confianza',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 10,
                                   color: AppColors.textSecondary,
                                 ),
                                 textAlign: TextAlign.center,
@@ -431,7 +496,7 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -442,15 +507,15 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     value,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: isDark ? AppColors.textPrimary : AppColors.textDark,
                       fontFamily: value.length > 20 ? 'monospace' : null,
@@ -462,7 +527,7 @@ class _TransactionReceiptScreenState extends State<TransactionReceiptScreen> {
             if (onTap != null)
               Icon(
                 Icons.copy_rounded,
-                size: 18,
+                size: 16,
                 color: AppColors.primary,
               ),
           ],

@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import 'profile_info_screen.dart';
+import 'settings_screen.dart';
+import 'help_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -54,25 +57,90 @@ class ProfileScreen extends StatelessWidget {
               _ProfileTile(
                 icon: Icons.person_outline_rounded,
                 title: 'Información',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProfileInfoScreen(),
+                    ),
+                  );
+                },
               ),
               _ProfileTile(
                 icon: Icons.settings_outlined,
                 title: 'Configuración',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(),
+                    ),
+                  );
+                },
               ),
               _ProfileTile(
                 icon: Icons.help_outline_rounded,
                 title: 'Ayuda',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HelpScreen(),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: AppSpacing.lg),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    authProvider.logout();
-                    context.go('/login');
+                  onPressed: () async {
+                    // Mostrar diálogo de confirmación
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) {
+                        final isDark = Theme.of(context).brightness == Brightness.dark;
+                        return AlertDialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          backgroundColor: isDark ? const Color(0xFF252940) : AppColors.backgroundLight,
+                          title: Text(
+                            'Cerrar Sesión',
+                            style: TextStyle(
+                              color: isDark ? AppColors.textPrimary : AppColors.textDark,
+                            ),
+                          ),
+                          content: Text(
+                            '¿Estás seguro de que deseas cerrar sesión?',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancelar'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.error,
+                                foregroundColor: AppColors.textPrimary,
+                              ),
+                              child: const Text('Cerrar Sesión'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                    
+                    if (confirmed == true && context.mounted) {
+                      // Cerrar sesión y forzar actualización del router
+                      await authProvider.logout();
+                      if (context.mounted) {
+                        // Forzar navegación al login y limpiar el stack
+                        context.go('/login');
+                      }
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.error,

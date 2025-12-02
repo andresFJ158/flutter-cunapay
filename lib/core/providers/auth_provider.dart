@@ -287,7 +287,10 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _isLoading = true;
+    notifyListeners();
     await _clearStoredAuth();
+    _isLoading = false;
     notifyListeners();
   }
 

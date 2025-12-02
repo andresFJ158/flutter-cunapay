@@ -248,6 +248,18 @@ class ApiService {
     return await _dio.get(ApiConfig.apiBalance);
   }
   
+  /// Cambia la contraseña del usuario
+  Future<Response> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final data = _removeNullValues({
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    });
+    return await _dio.post(ApiConfig.apiMeChangePassword, data: data);
+  }
+  
   // Transactions
   Future<Response> getTransactions({
     String? source,
