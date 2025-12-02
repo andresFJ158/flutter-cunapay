@@ -5,6 +5,7 @@ import '../../../core/providers/auth_provider.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import 'complete_profile_screen.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
   const ProfileInfoScreen({super.key});
@@ -111,6 +112,115 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                         isDark: isDark,
                       ),
                     ],
+                    // Verificar si el perfil está incompleto
+                    if (_isProfileIncomplete(user)) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Container(
+                        padding: EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppColors.warning.withValues(alpha: 0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: AppColors.warning,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: Text(
+                                    'Perfil Incompleto',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.warning,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text(
+                              'Completa tu perfil con tu información bancaria para poder retirar USDT',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const CompleteProfileScreen(),
+                                    ),
+                                  );
+                                  if (result == true && mounted) {
+                                    // Recargar información del usuario
+                                    _loadUserInfo();
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.warning,
+                                  foregroundColor: AppColors.textPrimary,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                child: const Text('Completar Perfil'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    // Información bancaria si está completa
+                    if (!_isProfileIncomplete(user)) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        'Información Bancaria',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? AppColors.textPrimary : AppColors.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      if (user?['bankAccountNumber'] != null)
+                        _InfoCard(
+                          title: 'Número de Cuenta',
+                          value: user!['bankAccountNumber'],
+                          icon: Icons.account_balance_wallet_outlined,
+                          isDark: isDark,
+                          onCopy: () {
+                            Clipboard.setData(ClipboardData(text: user!['bankAccountNumber']));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Número de cuenta copiado'),
+                                backgroundColor: AppColors.primary,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                        ),
+                      if (user?['bankAccountNumber'] != null) const SizedBox(height: AppSpacing.md),
+                      if (user?['bankEntity'] != null)
+                        _InfoCard(
+                          title: 'Entidad Bancaria',
+                          value: user!['bankEntity'],
+                          icon: Icons.account_balance_outlined,
+                          isDark: isDark,
+                        ),
+                    ],
                     const SizedBox(height: AppSpacing.lg),
                     // Información de la wallet
                     Text(
@@ -198,6 +308,16 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
               ),
             ),
     );
+  }
+
+  bool _isProfileIncomplete(Map<String, dynamic>? user) {
+    if (user == null) return true;
+    final bankAccountNumber = user['bankAccountNumber']?.toString().trim();
+    final bankEntity = user['bankEntity']?.toString().trim();
+    return bankAccountNumber == null || 
+           bankAccountNumber.isEmpty || 
+           bankEntity == null || 
+           bankEntity.isEmpty;
   }
 
   String _formatDate(dynamic date) {

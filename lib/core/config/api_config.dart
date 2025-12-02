@@ -38,6 +38,12 @@ class ApiConfig {
   static const String apiPurchasesMe = '/api/purchases/me';
   static String apiPurchasesMeById(String purchaseId) => '$apiPurchasesMe/$purchaseId';
   
+  // ==================== RETIROS USDT/BS ====================
+  static const String apiWithdrawalsPrice = '/api/withdrawals/price';
+  static const String apiWithdrawals = '/api/withdrawals';
+  static const String apiWithdrawalsMe = '/api/withdrawals/me';
+  static String apiWithdrawalsMeById(String withdrawalId) => '$apiWithdrawalsMe/$withdrawalId';
+  
   // ==================== PRECIOS BINANCE P2P (PÚBLICO) ====================
   static const String apiP2pUsdtBuyAvg = '/api/p2p/usdt/buy/avg';
   

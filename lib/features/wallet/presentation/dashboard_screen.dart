@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/dashboard_skeleton.dart';
 import 'deposit_screen.dart';
+import 'withdrawal_screen.dart';
 import 'receive_screen.dart';
 import '../../staking/presentation/staking_screen.dart';
 import '../../transactions/presentation/transactions_filter_screen.dart';
@@ -196,7 +197,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(height: AppSpacing.lg),
-                          // Action Buttons
+                          // Action Buttons - Primera fila
                           Row(
                             children: [
                               Expanded(
@@ -211,6 +212,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: _ActionButton(
+                                  icon: Icons.remove_rounded,
+                                  label: 'Retirar USDT',
+                                  color: AppColors.error,
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const WithdrawalScreen()),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          // Action Buttons - Segunda fila
+                          Row(
+                            children: [
                               Expanded(
                                 child: _ActionButton(
                                   icon: Icons.qr_code_rounded,

@@ -79,6 +79,27 @@ class InfoDialog extends StatelessWidget {
     );
   }
 
+  /// Muestra el diálogo de información para retirar USDT
+  static void showWithdrawalInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => InfoDialog(
+        title: 'Cómo retirar USDT',
+        description: 'Sigue estos pasos para retirar USDT a tu cuenta bancaria:',
+        steps: [
+          'Asegúrate de tener tu perfil completado con número de cuenta y entidad bancaria',
+          'Ingresa la cantidad de USDT que deseas retirar',
+          'Revisa el tipo de cambio y el monto en bolivianos que recibirás',
+          'Verifica que tengas suficiente saldo disponible',
+          'Presiona "Confirmar Retiro" para crear la solicitud',
+          'Revisa los detalles de la transacción y confirma',
+          'La solicitud será procesada por el administrador',
+          'Los fondos se transferirán a tu cuenta bancaria registrada una vez aprobada',
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;

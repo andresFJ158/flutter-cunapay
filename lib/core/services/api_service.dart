@@ -248,6 +248,18 @@ class ApiService {
     return await _dio.get(ApiConfig.apiBalance);
   }
   
+  /// Actualiza el perfil del usuario
+  Future<Response> updateProfile({
+    String? bankAccountNumber,
+    String? bankEntity,
+  }) async {
+    final data = _removeNullValues({
+      'bankAccountNumber': bankAccountNumber,
+      'bankEntity': bankEntity,
+    });
+    return await _dio.put(ApiConfig.apiMe, data: data);
+  }
+  
   /// Cambia la contraseña del usuario
   Future<Response> changePassword({
     required String currentPassword,
@@ -386,6 +398,47 @@ class ApiService {
   /// Obtiene los detalles de una compra específica del usuario
   Future<Response> getPurchaseById(String purchaseId) async {
     return await _dio.get(ApiConfig.apiPurchasesMeById(purchaseId));
+  }
+  
+  // ==================== RETIROS USDT/BS ====================
+  
+  /// Obtiene el precio actual de venta de USDT en BS (Bolivianos)
+  /// 
+  /// El precio se calcula como Binance P2P - 0.10 BS (o similar)
+  Future<Response> getWithdrawalPrice() async {
+    try {
+      final response = await _dio.get(ApiConfig.apiWithdrawalsPrice);
+      return response;
+    } catch (e) {
+      developer.log('Error al obtener precio de retiro: $e', name: 'ApiService', error: e);
+      rethrow;
+    }
+  }
+  
+  /// Crea una nueva solicitud de retiro de USDT
+  /// 
+  /// Requiere: amountUsdt (cantidad de USDT a retirar)
+  /// El usuario debe tener perfil completado (bankAccountNumber y bankEntity)
+  Future<Response> createWithdrawal(double amountUsdt) async {
+    final data = _removeNullValues({
+      'amountUsdt': amountUsdt,
+    });
+    return await _dio.post(ApiConfig.apiWithdrawals, data: data);
+  }
+  
+  /// Obtiene todos los retiros del usuario
+  /// 
+  /// Query params opcionales: status (pending, processing, completed, rejected)
+  Future<Response> getMyWithdrawals({String? status}) async {
+    final queryParams = <String, dynamic>{};
+    if (status != null) queryParams['status'] = status;
+    
+    return await _dio.get(ApiConfig.apiWithdrawalsMe, queryParameters: queryParams);
+  }
+  
+  /// Obtiene los detalles de un retiro específico del usuario
+  Future<Response> getWithdrawalById(String withdrawalId) async {
+    return await _dio.get(ApiConfig.apiWithdrawalsMeById(withdrawalId));
   }
   
   // ==================== PRECIOS BINANCE P2P (PÚBLICO - NO REQUIERE TOKEN) ====================
